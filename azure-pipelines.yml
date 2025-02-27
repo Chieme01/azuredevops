@@ -1,19 +1,58 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - main
 
+name: Deploy Bicep files
+
+parameters:
+- name: azureServiceConnection
+  type: string
+  default: 'Azure Resource Manager Connection - RG-CDT-ODS-DEVSECOPS-CE-D-001'
+
+variables:
+  vmImageName: 'ubuntu-latest'
+  resourceGroupName: 'RG-CDT-ODS-DEVSECOPS-CE-D-001'
+  location: 'West US'
+  csmFileLink: 'https://github.com/Chieme-CDT/devtest/blob/main/vnet.bicep'
+  templateFile: './main.bicep'
+  csmParametersFile: './main.bicepparam'
+  dependecy_templateFile: './keyvault.bicep'
+  #bicepParamFile: 
+  sshKeyPath: $(Build.ArtifactStagingDirectory)/ssh_key
+  key_vault_name: 'devtest-k8-keyvault-102'
+
 pool:
-  vmImage: ubuntu-latest
+  vmImage: $(vmImageName)
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: 'Deploy dependencies Key Vault'
+  inputs:
+    deploymentScope: 'Resource Group'
+    azureResourceManagerConnection: '${{ parameters.azureServiceConnection }}'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: '$(resourceGroupName)'
+    location: '$(location)'
+    csmFile: './keyvault.bicep'
+    #csmParametersFile: './keyvault.bicepparam'
+    deploymentMode: 'Incremental'
+    deploymentName: 'DeployDependentTemplate'
+    deploymentOutputs: 'templateOutputs'
+    useWithoutJSON: true
+    overrideParameters: '-keyVaultName $(key_vault_name) -location $(location)'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- task: PowerShell@2
+  displayName: 'Display Pipeline Variables'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Displaying all pipeline variables:"
+      $variables = Get-ChildItem env:
+      foreach ($var in $variables) {
+        Write-Host "$($var.Name) = $($var.Value)"
+      }
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Pipeline.Workspace)'
+    artifact: 'groundwork'
+    publishLocation: 'pipeline'
