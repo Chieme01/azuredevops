@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osp-configmap
+data:
+  PORT: "8080"
+  DATABASE_HOST: "placeholder_db"
+  
